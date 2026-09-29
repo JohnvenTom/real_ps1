@@ -28,6 +28,7 @@ const params = new URLSearchParams(location.search);
 export const CAPTURE = {
   scene: params.get('scene'),
   t: params.get('t') !== null ? parseFloat(params.get('t')) : null,
+  fx: (params.get('fx') || '').split(',').filter(Boolean),   // e.g. fx=nocrt,noaffine
 };
 
 export const SCENE_ORDER = ['orbit', 'rings', 'belt', 'warp', 'window'];

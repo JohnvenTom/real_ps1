@@ -22,7 +22,9 @@ function finish(canvas, { repeat = [1, 1] } = {}) {
   t.wrapS = THREE.RepeatWrapping;
   t.wrapT = THREE.RepeatWrapping;
   t.repeat.set(repeat[0], repeat[1]);
-  t.colorSpace = THREE.SRGBColorSpace;
+  // PS1-authentic: no gamma handling anywhere. Textures pass through raw
+  // (an sRGB tag would GPU-decode to linear ~x0.45 and crush the whole image).
+  t.colorSpace = THREE.NoColorSpace;
   return t;
 }
 
@@ -198,34 +200,34 @@ function paintMetal(c, { base = '#5a6070', warn = true } = {}) {
 
 function paintWall(c) {
   const ctx = c.getContext('2d'), w = c.width, h = c.height;
-  ctx.fillStyle = '#39404e'; ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = '#2c3240';
+  ctx.fillStyle = '#485062'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#39404e';
   ctx.fillRect(0, 0, w, 8); ctx.fillRect(0, h - 8, w, 8);
   // vents
-  ctx.fillStyle = '#1e222c';
+  ctx.fillStyle = '#2a2f3a';
   ctx.fillRect(8, 14, 20, 16);
-  ctx.fillStyle = '#4a5262';
+  ctx.fillStyle = '#5c6577';
   for (let i = 0; i < 5; i++) ctx.fillRect(9, 16 + i * 3, 18, 1);
   // small window port + rivets
-  ctx.fillStyle = '#141821'; ctx.fillRect(40, 12, 12, 12);
-  ctx.fillStyle = '#0a1a2e'; ctx.fillRect(41, 13, 10, 10);
-  ctx.fillStyle = '#5a6272';
+  ctx.fillStyle = '#20242e'; ctx.fillRect(40, 12, 12, 12);
+  ctx.fillStyle = '#12233c'; ctx.fillRect(41, 13, 10, 10);
+  ctx.fillStyle = '#6a7386';
   for (let i = 0; i < 8; i++) ctx.fillRect(4 + (i % 4) * 18, 2 + ((i / 4) | 0) * (h - 6), 1, 1);
   grain(ctx, w, h, 200, 0.07);
 }
 
 function paintFloor(c) {
   const ctx = c.getContext('2d'), w = c.width, h = c.height;
-  ctx.fillStyle = '#23282f'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#2e3440'; ctx.fillRect(0, 0, w, h);
   const n = 4;
   for (let r = 0; r < n; r++) for (let col = 0; col < n; col++) {
     const x = col * w / n, y = r * h / n, pw = w / n, ph = h / n;
-    ctx.fillStyle = (r + col) % 2 ? '#282e37' : '#232830';
+    ctx.fillStyle = (r + col) % 2 ? '#343b48' : '#2e3440';
     ctx.fillRect(x + 1, y + 1, pw - 2, ph - 2);
-    ctx.fillStyle = 'rgba(120,150,190,0.10)'; ctx.fillRect(x + 1, y + 1, pw - 2, 1);
+    ctx.fillStyle = 'rgba(150,180,220,0.12)'; ctx.fillRect(x + 1, y + 1, pw - 2, 1);
   }
   // faint glowing guide seam
-  ctx.fillStyle = 'rgba(90,170,255,0.28)';
+  ctx.fillStyle = 'rgba(110,190,255,0.34)';
   ctx.fillRect(0, h / 2 - 1, w, 1);
   grain(ctx, w, h, 240, 0.06);
 }
@@ -291,6 +293,7 @@ function paintExplosion(c) {
 // ---------- public API ----------
 
 const PAINTERS = {
+  solid: c => { const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); },
   hull: c => paintHull(c),
   hull2: c => paintHull(c, { base: '#62707c', plate: '#75838f', dark: '#39434c', trim: '#b8c4cc' }),
   fighter: c => paintFighter(c),
@@ -319,6 +322,7 @@ const PAINTERS = {
 };
 
 const SIZES = {
+  solid: 8,
   hull: 128, hull2: 128, fighter: 64, planetFire: 128, planetCream: 128, planetBlue: 128,
   clouds: 128, ringDisc: 256, rock: 64, rockBlue: 64, ice: 64,
   metal: 64, metalBlue: 64, wall: 64, floor: 64,

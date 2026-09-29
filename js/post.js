@@ -72,13 +72,13 @@ void main() {
   if (uCRT > 0.5) {
     float linePitch = uOutRes.y / ${RT_H}.0;
     float sl = fract(gl_FragCoord.y / max(linePitch, 1.0));
-    float scan = 0.72 + 0.28 * (0.5 + 0.5 * cos(sl * 6.28318));
+    float scan = 0.80 + 0.20 * (0.5 + 0.5 * cos(sl * 6.28318));
     col *= scan;
-    float slot = 0.92 + 0.08 * cos(gl_FragCoord.x * 0.9);
+    float slot = 0.94 + 0.06 * cos(gl_FragCoord.x * 0.9);
     col *= slot;
-    col *= 1.0 - 0.22 * pow(r2 * 0.55, 1.4);            // vignette
+    col *= 1.0 - 0.18 * pow(r2 * 0.55, 1.4);            // vignette
     col += (hash(gl_FragCoord.xy + fract(uTime) * 61.7) - 0.5) * 0.045;
-    col *= 1.06;                                          // glass gain
+    col *= 1.12;                                          // glass gain
   }
 
   col = mix(col, vec3(1.0), uFlash);

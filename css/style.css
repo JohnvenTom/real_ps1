@@ -1,0 +1,277 @@
+/* ============================================================
+   STELLAR ECHOES UI - 90s console shell.
+   Dark translucent blue panels, single amber accent, chunky
+   monospace, hard blinking cursor. The 4:3 stage sits centered
+   on black, like a CRT in a dark room.
+   ============================================================ */
+
+:root {
+  --amber: #ffb54d;
+  --ink: #dfe6ff;
+  --ink-dim: #8e9ac0;
+  --panel: rgba(6, 10, 34, 0.88);
+  --panel-edge: rgba(120, 160, 255, 0.38);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  background: #000;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Consolas", "Lucida Console", "Courier New", monospace;
+  color: var(--ink);
+  user-select: none;
+}
+
+/* 4:3 stage, pillarboxed on wider screens */
+#stage {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  height: min(100vh, 75vw);
+  background: #000;
+}
+
+#gl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+}
+
+#ui, .layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hidden { display: none !important; }
+
+.jp { color: var(--ink-dim); font-size: 0.85em; }
+
+/* ---------------- boot ---------------- */
+.boot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 38px;
+  background: #000;
+  animation: bootfade 4.8s ease-out forwards;
+}
+@keyframes bootfade { 0% { opacity: 0; } 12% { opacity: 1; } 92% { opacity: 1; } 100% { opacity: 0; } }
+
+.boot-logo { text-align: center; }
+.boot-diamond {
+  width: 46px; height: 46px;
+  margin: 0 auto 18px;
+  background: var(--amber);
+  transform: rotate(45deg);
+  box-shadow: 0 0 0 3px #000, 0 0 0 5px var(--amber);
+  animation: diamondIn 1s steps(6) forwards;
+}
+@keyframes diamondIn { from { transform: rotate(0deg) scale(0.2); } to { transform: rotate(45deg) scale(1); } }
+.boot-name {
+  letter-spacing: 0.34em;
+  font-size: 15px;
+  color: var(--ink);
+}
+.boot-name span { color: var(--ink-dim); }
+
+.boot-lines {
+  min-height: 96px;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.9;
+  color: #9fb0e8;
+  letter-spacing: 0.08em;
+}
+
+/* ---------------- title ---------------- */
+.title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8vh 0 7vh;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.title-block { text-align: center; }
+.title-jp {
+  font-size: clamp(14px, 2.6vh, 20px);
+  letter-spacing: 1.1em;
+  text-indent: 1.1em;
+  color: var(--ink-dim);
+  margin-bottom: 1.2vh;
+}
+.title-main {
+  font-size: clamp(34px, 9.5vh, 74px);
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  line-height: 1.05;
+  color: #f2f5ff;
+  text-shadow:
+    2px 2px 0 #1b2f6e, 4px 4px 0 #101c44,
+    6px 6px 0 #060a1c, 0 0 26px rgba(90, 130, 255, 0.35);
+}
+.title-sub {
+  margin-top: 2.4vh;
+  font-size: clamp(9px, 1.6vh, 12px);
+  letter-spacing: 0.3em;
+  color: var(--ink-dim);
+}
+.press-start {
+  font-size: clamp(15px, 2.8vh, 22px);
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  color: var(--amber);
+}
+.blink { animation: blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.title-copy {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #7d89a8;
+}
+
+/* ---------------- pause menu ---------------- */
+.pause {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 9%;
+  pointer-events: auto;
+}
+.pause-box {
+  min-width: 320px;
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  box-shadow: 0 0 0 4px rgba(6, 10, 34, 0.5), inset 0 0 40px rgba(20, 40, 110, 0.25);
+  padding: 22px 26px 16px;
+}
+.pause-title {
+  font-size: 15px;
+  letter-spacing: 0.3em;
+  border-bottom: 1px solid var(--panel-edge);
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  color: #fff;
+}
+.menu-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  cursor: pointer;
+}
+.menu-row .cursor { color: var(--amber); width: 1.1em; }
+.menu-row.sel { background: rgba(70, 100, 200, 0.28); color: #fff; }
+.menu-row .desc {
+  display: block;
+  margin-left: 1.4em;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+}
+.submenu { margin: 4px 0 4px 1.4em; }
+.menu-row.sub { padding: 4px 10px; font-size: 13px; }
+.pause-foot {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-edge);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: #5a6480;
+}
+
+/* ---------------- debug panel ---------------- */
+.debug {
+  top: auto; bottom: 34px; left: 50%; right: auto;
+  transform: translateX(-50%);
+  width: min(430px, 86%);
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  padding: 14px 16px 10px;
+  pointer-events: auto;
+}
+.dbg-title {
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  color: #fff;
+  border-bottom: 1px solid var(--panel-edge);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+.dbg-title span { color: var(--ink-dim); font-size: 10px; }
+.dbg-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.dbg-row:hover { background: rgba(70, 100, 200, 0.22); }
+.dbg-cn { flex: 0 0 132px; letter-spacing: 0.06em; }
+.dbg-en { flex: 1; font-size: 9.5px; color: #5a6480; letter-spacing: 0.12em; }
+.dbg-val { text-align: right; letter-spacing: 0.08em; }
+.dbg-stats {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-edge);
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  letter-spacing: 0.1em;
+}
+.dbg-note {
+  margin-top: 6px;
+  font-size: 9.5px;
+  line-height: 1.7;
+  color: #5a6480;
+}
+
+/* ---------------- HUD ---------------- */
+.scene-tag {
+  position: absolute;
+  left: 18px; bottom: 16px;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--ink);
+  text-shadow: 1px 1px 0 #000;
+  opacity: 0;
+  transition: opacity 0.7s;
+}
+.hints {
+  position: absolute;
+  right: 18px; bottom: 16px;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: #5a6480;
+  text-shadow: 1px 1px 0 #000;
+}
+
+/* ---------------- toast ---------------- */
+.toast {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8.5%;
+  font-size: 13px;
+  letter-spacing: 0.24em;
+  color: #fff;
+  text-shadow: 1px 1px 0 #000, 0 0 12px rgba(120, 150, 255, 0.5);
+  opacity: 0;
+  transition: opacity 0.5s;
+}

@@ -29,12 +29,8 @@ export const PS1Global = {
 };
 
 const VERT = /* glsl */`
-attribute vec3 position;
-attribute vec3 normal;
-attribute vec2 uv;
-
-uniform mat4 modelMatrix, viewMatrix, projectionMatrix;
-uniform mat3 normalMatrix;
+// (position / normal / uv attributes and the standard matrices are
+//  injected automatically by ShaderMaterial - do not redeclare)
 
 uniform vec3 uLightDir, uLightColor, uFillDir, uFillColor, uAmbient, uFogColor;
 uniform float uFogNear, uFogFar, uJitter, uFogOn, uLightOn;
@@ -47,7 +43,11 @@ varying vec2 vUvA;
 varying float vW;
 
 void main() {
-  vec4 world = modelMatrix * vec4(position, 1.0);
+  mat4 model = modelMatrix;
+  #ifdef USE_INSTANCING
+    model = modelMatrix * instanceMatrix;   // InstancedMesh support
+  #endif
+  vec4 world = model * vec4(position, 1.0);
   vec4 view  = viewMatrix * world;
   vec4 clip  = projectionMatrix * view;
 
@@ -60,7 +60,7 @@ void main() {
   }
 
   // --- Gouraud lighting, evaluated per vertex ---
-  vec3 n = normalize(mat3(modelMatrix) * normal);
+  vec3 n = normalize(mat3(model) * normal);
   float ndl = max(dot(n, uLightDir), 0.0);
   float ndf = max(dot(n, uFillDir), 0.0);
   vec3 lit = uAmbient + uLightColor * ndl + uFillColor * ndf;
@@ -137,13 +137,15 @@ export function makePS1Material(opts = {}) {
 }
 
 // billboard sprite helper (PS1 games used camera-facing quads for glows)
-export function makeSprite(mapName, { scale = 1, additive = true, unlit = true, opacity = 1, alphaTest = 0 } = {}) {
+export function makeSprite(mapName, { scale = 1, additive = true, unlit = true, opacity = 1, alphaTest = 0, depthTest = true } = {}) {
   const mat = makePS1Material({
     map: mapName, additive, unlit, opacity, alphaTest,
     transparent: true, side: THREE.DoubleSide,
   });
+  mat.depthTest = depthTest;
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
-  mesh.scale.setScalar(scale);
+  if (Array.isArray(scale)) mesh.scale.set(scale[0], scale[1], 1);
+  else mesh.scale.setScalar(scale);
   mesh.userData.billboard = true;
   mesh.renderOrder = additive ? 10 : 0;
   return mesh;
