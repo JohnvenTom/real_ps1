@@ -157,6 +157,33 @@ export function updateBillboards(root, camera) {
   });
 }
 
+// layered starfield: dense white + sparse blue giants + sparse warm stars
+export function makeStarField(n, radius, { dim = 1 } = {}) {
+  const group = new THREE.Group();
+  const layers = [
+    { count: Math.round(n * 0.72), color: 0xd8e2ff, size: 2.0, opacity: 0.9 * dim },
+    { count: Math.round(n * 0.16), color: 0x9fc4ff, size: 3.4, opacity: 0.95 * dim },
+    { count: Math.round(n * 0.12), color: 0xffd9a8, size: 3.0, opacity: 0.9 * dim },
+  ];
+  for (const L of layers) {
+    const pos = new Float32Array(L.count * 3);
+    for (let i = 0; i < L.count; i++) {
+      const v = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1)
+        .normalize().multiplyScalar(radius * (0.9 + Math.random() * 0.2));
+      pos.set([v.x, v.y, v.z], i * 3);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const p = new THREE.Points(g, new THREE.PointsMaterial({
+      map: tex('star'), color: L.color, size: L.size, sizeAttenuation: false,
+      transparent: true, opacity: L.opacity, blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    p.renderOrder = -10;
+    group.add(p);
+  }
+  return group;
+}
+
 // helper: build a box group from parts spec, all sharing one material
 export function boxParts(parts, material) {
   const g = new THREE.Group();

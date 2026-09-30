@@ -290,6 +290,194 @@ function paintExplosion(c) {
   ctx.putImageData(img, 0, 0);
 }
 
+// dark expanding smoke puff (normal blending, not additive)
+function paintSmoke(c) {
+  const ctx = c.getContext('2d'), w = c.width, h = c.height, cx = w / 2, cy = h / 2;
+  ctx.clearRect(0, 0, w, h);
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, w / 2);
+  g.addColorStop(0, 'rgba(52,44,40,0.85)');
+  g.addColorStop(0.55, 'rgba(34,28,26,0.5)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  for (const [ox, oy, r] of [[-8, 4, 20], [6, -6, 24], [0, 8, 17], [12, 6, 14]]) {
+    ctx.beginPath(); ctx.arc(cx + ox, cy + oy, r, 0, 6.29); ctx.fill();
+  }
+  const img = ctx.getImageData(0, 0, w, h), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i] = Math.round(d[i] / 24) * 24; d[i + 1] = Math.round(d[i + 1] / 24) * 24; d[i + 2] = Math.round(d[i + 2] / 24) * 24;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+// dense micro-panels for hull greeble blocks
+function paintGreeble(c) {
+  const ctx = c.getContext('2d'), w = c.width, h = c.height;
+  ctx.fillStyle = '#39414c'; ctx.fillRect(0, 0, w, h);
+  for (let i = 0; i < 46; i++) {
+    const x = Math.random() * w | 0, y = Math.random() * h | 0;
+    const pw = 2 + Math.random() * 7, ph = 2 + Math.random() * 5;
+    ctx.fillStyle = ['#465058', '#333b46', '#4c5660', '#2c333d'][i % 4];
+    ctx.fillRect(x, y, pw, ph);
+    ctx.fillStyle = 'rgba(200,220,240,0.16)'; ctx.fillRect(x, y, pw, 1);
+  }
+  // vents + indicator lamps
+  for (let i = 0; i < 4; i++) {
+    const x = Math.random() * (w - 12) | 0, y = Math.random() * (h - 6) | 0;
+    ctx.fillStyle = '#20262e'; ctx.fillRect(x, y, 10, 4);
+    ctx.fillStyle = '#5a6572'; ctx.fillRect(x + 1, y + 1, 8, 1);
+  }
+  for (let i = 0; i < 5; i++) {
+    ctx.fillStyle = i % 2 ? '#ffb54d' : '#7dffb0';
+    ctx.fillRect(Math.random() * w | 0, Math.random() * h | 0, 1, 1);
+  }
+  grain(ctx, w, h, 220, 0.12);
+}
+
+// light plating with decals + painted registry number
+function paintPlating2(c) {
+  const ctx = c.getContext('2d'), w = c.width, h = c.height;
+  ctx.fillStyle = '#8e96a2'; ctx.fillRect(0, 0, w, h);
+  const cols = 3, rows = 2;
+  for (let r = 0; r < rows; r++) for (let col = 0; col < cols; col++) {
+    const x = col * w / cols, y = r * h / rows, pw = w / cols, ph = h / rows;
+    ctx.fillStyle = (r + col) % 2 ? '#9aa3ae' : '#87909c';
+    ctx.fillRect(x + 2, y + 2, pw - 4, ph - 4);
+    ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(x + 2, y + 2, pw - 4, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x + 2, y + ph - 3, pw - 4, 1);
+  }
+  // accent stripes + registry
+  ctx.fillStyle = '#23305a'; ctx.fillRect(0, h * 0.44, w, 5);
+  ctx.fillStyle = '#b8402a'; ctx.fillRect(0, h * 0.44 + 5, w, 2);
+  ctx.fillStyle = '#101820';
+  ctx.font = 'bold 13px monospace';
+  ctx.fillText('AE-77', w * 0.08, h * 0.36);
+  ctx.font = 'bold 7px monospace';
+  ctx.fillText('ASTRAL NAVY', w * 0.55, h * 0.78);
+  // hazard corner
+  for (let x = 0; x < 16; x += 4) {
+    ctx.fillStyle = '#c8a020'; ctx.fillRect(x, 0, 2, 3);
+  }
+  grain(ctx, w, h, 260, 0.08);
+}
+
+// solar panel array
+function paintSolar(c) {
+  const ctx = c.getContext('2d'), w = c.width, h = c.height;
+  ctx.fillStyle = '#101a30'; ctx.fillRect(0, 0, w, h);
+  const cw = w / 4, ch = h / 3;
+  for (let r = 0; r < 3; r++) for (let col = 0; col < 4; col++) {
+    const dead = (r * 4 + col) === 5;
+    ctx.fillStyle = dead ? '#0c1220' : (r + col) % 2 ? '#27498c' : '#2e56a0';
+    ctx.fillRect(col * cw + 1, r * ch + 1, cw - 2, ch - 2);
+    ctx.fillStyle = dead ? '#0c1220' : 'rgba(140,190,255,0.28)';
+    ctx.fillRect(col * cw + 1, r * ch + 1, cw - 2, 2);
+  }
+  ctx.strokeStyle = '#3a4250';
+  for (let i = 0; i <= 4; i++) { ctx.beginPath(); ctx.moveTo(i * cw, 0); ctx.lineTo(i * cw, h); ctx.stroke(); }
+  for (let i = 0; i <= 3; i++) { ctx.beginPath(); ctx.moveTo(0, i * ch); ctx.lineTo(w, i * ch); ctx.stroke(); }
+}
+
+// cargo container corrugation + label
+function paintCargo(c, { base = '#7a4a2a', label = true } = {}) {
+  const ctx = c.getContext('2d'), w = c.height, h = c.height; // square
+  const W = c.width; const H = c.height;
+  ctx.fillStyle = base; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  for (let x = 2; x < W; x += 4) ctx.fillRect(x, 0, 2, H);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(0, 0, W, 1);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0, H - 2, W, 2); ctx.fillRect(0, 0, 2, H); ctx.fillRect(W - 2, 0, 2, H);
+  if (label) {
+    ctx.fillStyle = '#d8cfc0'; ctx.fillRect(W * 0.28, H * 0.34, W * 0.44, H * 0.3);
+    ctx.fillStyle = '#33302a';
+    ctx.font = 'bold 8px monospace';
+    ctx.fillText('KS-7', W * 0.33, H * 0.55);
+  }
+  grain(ctx, W, H, 160, 0.1);
+}
+
+// interior wall with pipe runs
+function paintPipes(c) {
+  const ctx = c.getContext('2d'), w = c.width, h = c.height;
+  ctx.fillStyle = '#39404e'; ctx.fillRect(0, 0, w, h);
+  for (const [x, col] of [[10, '#57606e'], [22, '#4a5260'], [46, '#606a78']]) {
+    ctx.fillStyle = col; ctx.fillRect(x, 4, 5, h - 8);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(x, 4, 1, h - 8);
+    ctx.fillStyle = '#2c3240';
+    ctx.fillRect(x - 1, h * 0.3, 7, 3); ctx.fillRect(x - 1, h * 0.72, 7, 3);
+  }
+  // valve wheel + gauge
+  ctx.strokeStyle = '#8a4a30'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(16, h * 0.5, 4, 0, 6.29); ctx.stroke();
+  ctx.fillStyle = '#d8c060'; ctx.fillRect(48, h * 0.4, 5, 5);
+  ctx.fillStyle = '#20242e'; ctx.fillRect(49, h * 0.4 + 1, 3, 3);
+  grain(ctx, w, h, 140, 0.08);
+}
+
+// signage panel with baked text
+function paintSign(c) {
+  const ctx = c.getContext('2d'), w = c.width, h = c.height;
+  ctx.fillStyle = '#141a26'; ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#ffb54d'; ctx.lineWidth = 1;
+  ctx.strokeRect(1.5, 1.5, w - 3, h - 3);
+  ctx.fillStyle = '#ffb54d';
+  ctx.font = 'bold 7px monospace';
+  ctx.fillText('OBSERVATION', 6, 12);
+  ctx.fillStyle = '#dfe6ff';
+  ctx.font = 'bold 9px monospace';
+  ctx.fillText('DECK 3', 6, 24);
+  ctx.fillStyle = '#5a6480';
+  ctx.font = '5px monospace';
+  ctx.fillText('STARBOARD LOUNGE', 6, 34);
+  // arrow
+  ctx.fillStyle = '#7dffb0';
+  ctx.beginPath(); ctx.moveTo(w - 14, 8); ctx.lineTo(w - 6, 11); ctx.lineTo(w - 14, 14); ctx.fill();
+}
+
+// holo-table top: concentric data rings
+function paintHolo(c) {
+  const ctx = c.getContext('2d'), w = c.width, h = c.height, cx = w / 2, cy = h / 2;
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = 'rgba(90,200,255,0.8)'; ctx.lineWidth = 1;
+  for (const r of [w * 0.16, w * 0.28, w * 0.4]) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.29); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(cx, 4); ctx.lineTo(cx, h - 4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(4, cy); ctx.lineTo(w - 4, cy); ctx.stroke();
+  ctx.fillStyle = 'rgba(90,200,255,0.9)';
+  for (let i = 0; i < 6; i++) ctx.fillRect(6 + Math.random() * (w - 12) | 0, 6 + Math.random() * (h - 12) | 0, 2, 2);
+}
+
+// structured nebula: filaments + bright knots, not a plain radial blob
+function paintNebula(c, [r0, g0, b0], [r1, g1, b1]) {
+  const ctx = c.getContext('2d'), w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h);
+  const strands = 9;
+  for (let s = 0; s < strands; s++) {
+    const y0 = h * (0.15 + Math.random() * 0.7);
+    ctx.strokeStyle = `rgba(${r1},${g1},${b1},${0.10 + Math.random() * 0.12})`;
+    ctx.lineWidth = 3 + Math.random() * 9;
+    ctx.beginPath();
+    ctx.moveTo(-10, y0);
+    let y = y0;
+    for (let x = 0; x <= w + 10; x += w / 7) {
+      y += (Math.random() - 0.5) * h * 0.16;
+      ctx.quadraticCurveTo(x - w / 14, y + (Math.random() - 0.5) * 18, x, y);
+    }
+    ctx.stroke();
+  }
+  // glowing knots along the middle band
+  for (let k = 0; k < 6; k++) {
+    const kx = w * (0.12 + Math.random() * 0.76), ky = h * (0.3 + Math.random() * 0.4);
+    const rr = 8 + Math.random() * 22;
+    const g = ctx.createRadialGradient(kx, ky, 0, kx, ky, rr);
+    g.addColorStop(0, `rgba(${r0},${g0},${b0},${0.5 + Math.random() * 0.3})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(kx, ky, rr, 0, 6.29); ctx.fill();
+  }
+  // scattered stars inside the cloud
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  for (let i = 0; i < 40; i++) ctx.fillRect(Math.random() * w | 0, Math.random() * h | 0, 1, 1);
+}
+
 // ---------- public API ----------
 
 const PAINTERS = {
@@ -297,6 +485,17 @@ const PAINTERS = {
   hull: c => paintHull(c),
   hull2: c => paintHull(c, { base: '#62707c', plate: '#75838f', dark: '#39434c', trim: '#b8c4cc' }),
   fighter: c => paintFighter(c),
+  greeble: c => paintGreeble(c),
+  plating2: c => paintPlating2(c),
+  solar: c => paintSolar(c),
+  cargo: c => paintCargo(c),
+  cargoBlue: c => paintCargo(c, { base: '#3f5a6a' }),
+  pipes: c => paintPipes(c),
+  sign: c => paintSign(c),
+  holo: c => paintHolo(c),
+  smoke: c => paintSmoke(c),
+  nebulaViolet: c => paintNebula(c, [235, 215, 255], [150, 90, 255]),
+  nebulaCyan: c => paintNebula(c, [210, 245, 255], [70, 170, 255]),
   planetFire: c => paintBands(c, ['#7a2f18', '#c86a30', '#e8a050', '#8a3a1e', '#f0c070'], { wobble: 3, storms: 3 }),
   planetCream: c => paintBands(c, ['#b09060', '#d8c090', '#e8dcc0', '#987848', '#c8b488'], { wobble: 4, storms: 2 }),
   planetBlue: c => paintBands(c, ['#20355e', '#2e4f88', '#4a74b0', '#16264a', '#7aa0d0'], { wobble: 3, storms: 2 }),
@@ -323,7 +522,10 @@ const PAINTERS = {
 
 const SIZES = {
   solid: 8,
-  hull: 128, hull2: 128, fighter: 64, planetFire: 128, planetCream: 128, planetBlue: 128,
+  hull: 128, hull2: 128, fighter: 64, greeble: 64, plating2: 128,
+  solar: 64, cargo: 64, cargoBlue: 64, pipes: 64, sign: 64, holo: 64,
+  smoke: 64, nebulaViolet: 256, nebulaCyan: 256,
+  planetFire: 128, planetCream: 128, planetBlue: 128,
   clouds: 128, ringDisc: 256, rock: 64, rockBlue: 64, ice: 64,
   metal: 64, metalBlue: 64, wall: 64, floor: 64,
   glowSun: 64, glowOrange: 64, glowBlue: 64, glowCyan: 64, glowViolet: 64, glowRed: 64, glowWhite: 64,
@@ -339,6 +541,47 @@ export function tex(name, opts = {}) {
   const t = cache.get(name);
   if (opts.repeat) t.repeat.set(opts.repeat[0], opts.repeat[1]);
   return t;
+}
+
+// Radar sweep console screen: rotating line + blips + range rings
+export function makeRadarScreen() {
+  const w = 64, h = 48;
+  const c = makeCanvas(w, h), ctx = c.getContext('2d');
+  const t = finish(c);
+  let phase = 0;
+  const blips = [];
+  for (let i = 0; i < 5; i++) blips.push({ x: 10 + Math.random() * 44, y: 8 + Math.random() * 32, seen: 0 });
+  function redraw() {
+    phase += 1;
+    ctx.fillStyle = '#02100a'; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(90,255,160,0.5)';
+    ctx.beginPath(); ctx.arc(32, 24, 20, 0, 6.29); ctx.stroke();
+    ctx.beginPath(); ctx.arc(32, 24, 13, 0, 6.29); ctx.stroke();
+    ctx.beginPath(); ctx.arc(32, 24, 6, 0, 6.29); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(12, 24); ctx.lineTo(52, 24); ctx.stroke();
+    // sweep line
+    const a = phase * 0.09;
+    ctx.strokeStyle = '#7dffb0'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(32, 24);
+    ctx.lineTo(32 + Math.cos(a) * 20, 24 + Math.sin(a) * 20); ctx.stroke();
+    ctx.lineWidth = 1;
+    // blips light up when the sweep passes
+    for (const b of blips) {
+      const ba = Math.atan2(b.y - 24, b.x - 32);
+      let d = ((ba - a) % 6.283 + 6.283) % 6.283;
+      if (d < 0.5) b.seen = 14;
+      if (b.seen > 0) {
+        b.seen--;
+        ctx.fillStyle = `rgba(255,220,120,${0.3 + b.seen / 18})`;
+        ctx.fillRect(b.x - 1, b.y - 1, 3, 3);
+      }
+    }
+    ctx.fillStyle = '#ffd27f'; ctx.font = '5px monospace';
+    ctx.fillText('SCAN', 3, 7);
+    t.needsUpdate = true;
+  }
+  redraw();
+  return { texture: t, update(tSec) { if ((tSec * 8 | 0) !== ((tSec - 0.016) * 8 | 0)) redraw(); } };
 }
 
 // Dynamic console screen texture: scrolling fake telemetry.

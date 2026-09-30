@@ -47,25 +47,65 @@ export default {
       this.rings.push({ mesh: r, mat, z0: -i * SPACING });
       G.add(r);
     }
+    // counter-rotating inner ring set, tighter + slower (bold enough to read)
+    this.innerRings = [];
+    for (let i = 0; i < 12; i++) {
+      const mat = makePS1Material({
+        map: 'glowWhite', unlit: true, additive: true, opacity: 0.85, depthWrite: false,
+        tint: [0.7, 0.6, 1.0],
+      });
+      const r = new THREE.Mesh(new THREE.TorusGeometry(7.2, 0.5, 4, 6), mat);
+      r.position.z = -i * 20 - 6;
+      r.rotation.z = -i * 0.4;
+      this.innerRings.push({ mesh: r, mat, z0: -i * 20 - 6 });
+      G.add(r);
+    }
+    // hexagonal far gate (big, framed against a calmer core)
+    this.gate = new THREE.Mesh(
+      new THREE.TorusGeometry(30, 2.6, 6, 6),
+      makePS1Material({ map: 'glowWhite', unlit: true, additive: true, tint: [0.85, 0.65, 1], opacity: 0.85, depthWrite: false })
+    );
+    this.gate.position.z = -250;
+    G.add(this.gate);
+    // energy arcs: beaded lightning (Points chain, thick at 240p where 1px lines die)
+    this.arcs = [];
+    for (let i = 0; i < 6; i++) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(10 * 3), 3));
+      const beads = new THREE.Points(g, new THREE.PointsMaterial({
+        map: tex('star'), color: new THREE.Color(0.7, 0.95, 1), size: 4.5, sizeAttenuation: false,
+        transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false,
+      }));
+      beads.userData = { next: Math.random() * 0.5 };
+      this.arcs.push(beads); G.add(beads);
+    }
 
-    // star streaks: instanced thin boxes flying toward camera
-    const SN = 130;
+    // star streaks: two instanced fields with different tints
+    const SN = 110;
     const streakGeo = new THREE.BoxGeometry(0.14, 0.14, 1);
-    const streakMat = makePS1Material({ map: 'glowWhite', unlit: true, additive: true, tint: [0.75, 0.85, 1], depthWrite: false });
-    const streaks = new THREE.InstancedMesh(streakGeo, streakMat, SN);
+    const mkStreakMesh = tint => {
+      const m = new THREE.InstancedMesh(streakGeo,
+        makePS1Material({ map: 'glowWhite', unlit: true, additive: true, tint, depthWrite: false }), SN);
+      return m;
+    };
+    this.streaks = mkStreakMesh([0.75, 0.85, 1]);
+    this.streaksV = mkStreakMesh([0.8, 0.6, 1]);
     this.streakData = [];
+    this.streakDataV = [];
     for (let i = 0; i < SN; i++) {
       const ang = Math.random() * Math.PI * 2;
       const rad = 4 + Math.random() * 22;
       this.streakData.push({
         x: Math.cos(ang) * rad, y: Math.sin(ang) * rad,
-        z: -Math.random() * 300,
-        len: 10 + Math.random() * 22,
-        sp: 150 + Math.random() * 130,
+        z: -Math.random() * 300, len: 10 + Math.random() * 22, sp: 150 + Math.random() * 130,
+      });
+      const ang2 = Math.random() * Math.PI * 2, rad2 = 10 + Math.random() * 18;
+      this.streakDataV.push({
+        x: Math.cos(ang2) * rad2, y: Math.sin(ang2) * rad2,
+        z: -Math.random() * 300, len: 7 + Math.random() * 14, sp: 90 + Math.random() * 70,
       });
     }
-    G.add(streaks);
-    this.streaks = streaks;
+    G.add(this.streaks, this.streaksV);
     this._m4 = new THREE.Matrix4();
     this._q = new THREE.Quaternion();
     this._s = V(1, 1, 1);
@@ -79,7 +119,7 @@ export default {
     this.halo.position.set(0, 0, -50);
     G.add(this.coreGlow, this.halo);
 
-    // our ship, seen from behind: hull + fins + twin engine glows
+    // our ship, seen from behind: hull + fins + twin engines + cockpit
     const shipMat = makePS1Material({ map: 'fighter', uvScale: [2, 1] });
     const ship = boxParts([
       [1.1, 0.6, 3.4, 0, 0, 0],
@@ -91,9 +131,23 @@ export default {
     ship.scale.setScalar(1.5);
     this.engL = makeSprite('glowCyan', { scale: 3.2 }); this.engL.position.set(-0.6, 0, 2.0);
     this.engR = makeSprite('glowCyan', { scale: 3.2 }); this.engR.position.set(0.6, 0, 2.0);
-    ship.add(this.engL, this.engR);
+    this.cockpit = makeSprite('glowCyan', { scale: 1.4, opacity: 0.8 });
+    this.cockpit.position.set(0, 0.45, -1.0);
+    this.navL = makeSprite('glowRed', { scale: 2.0 }); this.navL.position.set(-1.25, 0.05, 0.7);
+    this.navR = makeSprite('glowCyan', { scale: 2.0 }); this.navR.position.set(1.25, 0.05, 0.7);
+    ship.add(this.engL, this.engR, this.cockpit, this.navL, this.navR);
     G.add(ship);
     this.ship = ship;
+
+    // exhaust puffs: fading sprites spawned behind the engines
+    this.puffs = [];
+    for (let i = 0; i < 10; i++) {
+      const pf = makeSprite('glowCyan', { scale: 0.001, opacity: 0.7 });
+      pf.visible = false;
+      this.puffs.push({ s: pf, t: -1 });
+      G.add(pf);
+    }
+    this._puffT = 0;
 
     root.add(G);
   },
@@ -122,11 +176,48 @@ export default {
       r.mesh.scale.setScalar(1 + Math.sin(t * 2 + i) * 0.04);
     }
 
-    // streaks
+    // inner rings counter-rotate and breathe
+    const IN = this.innerRings.length, ISP = 20;
+    for (let i = 0; i < IN; i++) {
+      const r = this.innerRings[i];
+      let z = r.z0 + ((t * 34) % (IN * ISP));
+      z = ((z % (IN * ISP)) + IN * ISP) % (IN * ISP) - (IN - 1) * ISP;
+      r.mesh.position.z = z;
+      r.mesh.rotation.z = -t * 0.9 - i * 0.4;
+      r.mat.uniforms.uOpacity.value = 0.3 + 0.3 * (0.5 + 0.5 * Math.sin(z * 0.12 + t * 5));
+    }
+
+    // far gate slow spin + pulse
+    this.gate.rotation.z = t * 0.15;
+    this.gate.material.uniforms.uOpacity.value = 0.5 + 0.3 * Math.sin(t * 1.7);
+
+    // energy arcs re-strike at random angles (10 beads each)
+    for (const arc of this.arcs) {
+      arc.userData.next -= dt;
+      if (arc.userData.next <= 0) {
+        arc.userData.next = 0.35 + Math.random() * 1.1;
+        const a0 = Math.random() * Math.PI * 2, a1 = a0 + 0.6 + Math.random() * 1.2;
+        const z0 = -15 - Math.random() * 60;
+        const arr = arc.geometry.attributes.position.array;
+        for (let k = 0; k < 10; k++) {
+          const k0 = k / 9;
+          const ang = a0 + (a1 - a0) * k0 + (Math.random() - 0.5) * 0.3;
+          const rad = 6.5 + k0 * 5 + (Math.random() - 0.5) * 1.8;
+          arr[k * 3] = Math.cos(ang) * rad;
+          arr[k * 3 + 1] = Math.sin(ang) * rad;
+          arr[k * 3 + 2] = z0 + (Math.random() - 0.5) * 3;
+        }
+        arc.geometry.attributes.position.needsUpdate = true;
+        arc.material.opacity = 0.95;
+      }
+      arc.material.opacity = Math.max(0, arc.material.opacity - dt * 1.8);
+    }
+
+    // streaks (two tint layers)
+    const span = 320;
     for (let i = 0; i < this.streakData.length; i++) {
       const s = this.streakData[i];
       let z = s.z + t * s.sp;
-      const span = 320;
       z = ((z % span) + span) % span - 300;
       this._p.set(s.x, s.y, z);
       this._s.set(1, 1, s.len);
@@ -134,19 +225,52 @@ export default {
       this.streaks.setMatrixAt(i, this._m4);
     }
     this.streaks.instanceMatrix.needsUpdate = true;
+    for (let i = 0; i < this.streakDataV.length; i++) {
+      const s = this.streakDataV[i];
+      let z = s.z + t * s.sp;
+      z = ((z % span) + span) % span - 300;
+      this._p.set(s.x, s.y, z);
+      this._s.set(1, 1, s.len);
+      this._m4.compose(this._p, this._q, this._s);
+      this.streaksV.setMatrixAt(i, this._m4);
+    }
+    this.streaksV.instanceMatrix.needsUpdate = true;
 
-    // glow pulse
-    const gs = 26 + Math.sin(t * 5) * 5 + Math.sin(t * 11) * 2;
+    // glow pulse (kept modest so the gate reads behind it)
+    const gs = 17 + Math.sin(t * 5) * 3.5 + Math.sin(t * 11) * 1.5;
     this.coreGlow.scale.set(gs, gs, 1);
-    this.halo.scale.set(90 + Math.sin(t * 3) * 12, 90 + Math.sin(t * 3) * 12, 1);
+    this.coreGlow.material.uniforms.uOpacity.value = 0.8;
+    this.halo.scale.set(70 + Math.sin(t * 3) * 10, 70 + Math.sin(t * 3) * 10, 1);
 
-    // ship bob + engine flicker
+    // ship bob + roll + engine flicker + nav blink
     this.ship.position.y = -1.4 + Math.sin(t * 1.4) * 0.35;
     this.ship.position.x = Math.sin(t * 0.9) * 0.5;
-    this.ship.rotation.z = Math.sin(t * 0.9) * 0.08;
+    this.ship.rotation.z = Math.sin(t * 0.9) * 0.08 + Math.sin(t * 0.23) * 0.1;
     this.ship.rotation.y = Math.sin(t * 0.6) * 0.05;
     const e = 1.8 + Math.random() * 1.2;
     this.engL.scale.set(e, e, 1);
     this.engR.scale.set(2.9 - e * 0.4 + Math.random() * 0.8, 2.9 - e * 0.4, 1);
+    this.navL.visible = (t % 1.1) < 0.55;
+    this.navR.visible = ((t + 0.55) % 1.1) < 0.55;
+
+    // exhaust puffs stream behind
+    this._puffT -= dt;
+    if (this._puffT <= 0) {
+      this._puffT = 0.1;
+      const pf = this.puffs.find(x => x.t < 0);
+      if (pf) {
+        pf.t = 0; pf.s.visible = true;
+        pf.s.position.set(this.ship.position.x + (Math.random() - 0.5) * 0.4, this.ship.position.y - 0.05, this.ship.position.z + 4);
+      }
+    }
+    for (const pf of this.puffs) {
+      if (pf.t < 0) continue;
+      pf.t += dt;
+      if (pf.t > 0.7) { pf.t = -1; pf.s.visible = false; pf.s.scale.setScalar(0.001); continue; }
+      const k = pf.t;
+      pf.s.scale.setScalar(1.6 + k * 12);
+      pf.s.material.uniforms.uOpacity.value = 0.6 * (1 - k / 0.7);
+      pf.s.position.z += dt * 40;
+    }
   },
 };

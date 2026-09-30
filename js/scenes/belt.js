@@ -59,8 +59,10 @@ export default {
       transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.5,
     })));
 
-    // asteroid field; the big one at center-left carries the rig
+    // asteroid field (3 rock variants); the big one at center-left carries the rig
     const rockMat = makePS1Material({ map: 'rock', uvScale: [2, 2] });
+    const rockMatB = makePS1Material({ map: 'rockBlue', uvScale: [2, 2] });
+    const rockMatC = makePS1Material({ map: 'rock', uvScale: [3, 2], tint: [1.12, 0.94, 0.82] });
     this.rocks = [];
     const layout = [
       //  size   x     y    z
@@ -68,16 +70,41 @@ export default {
       [7, 26, 6, -84], [5, -44, -14, -96], [8, 8, 18, -130], [4.5, -30, 10, -48],
       [3.5, 16, -8, -40], [6, 48, -6, -110], [3, -8, -16, -34], [5, 38, 16, -66],
       [2.5, -22, 8, -28], [9, -70, 24, -160], [4, 60, 26, -150],
+      [3.2, -52, -22, -70], [6.5, 20, 22, -95], [2.8, 44, -18, -52], [4.8, -18, 16, -75],
+      [3.6, 5, -20, -58], [5.5, 68, 8, -125], [2.2, -36, 18, -42], [4.2, 33, 2, -30],
     ];
-    for (const [s, x, y, z] of layout) {
-      const r = new THREE.Mesh(rockGeo(s), rockMat);
+    for (let i = 0; i < layout.length; i++) {
+      const [s, x, y, z] = layout[i];
+      const r = new THREE.Mesh(rockGeo(s), [rockMat, rockMatB, rockMatC][i % 3]);
       r.position.set(x, y, z);
       r.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
       r.userData.spin = V(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.16);
       this.rocks.push(r); G.add(r);
     }
     const big = this.rocks[0];
-    big.userData.spin.set(0.008, 0.02, 0.004);   // rig stays readable: very slow tumble
+    big.userData.spin.set(0.008, 0.02, 0.004);
+
+    // instanced small rubble field (60 shards drifting in the haze)
+    const RB = 60;
+    const rubble = new THREE.InstancedMesh(
+      new THREE.IcosahedronGeometry(1, 0),
+      makePS1Material({ map: 'rock', uvScale: [1, 1] }), RB);
+    this.rubbleData = [];
+    for (let i = 0; i < RB; i++) {
+      this.rubbleData.push({
+        x: (Math.random() - 0.5) * 130,
+        y: (Math.random() - 0.5) * 60,
+        z: -20 - Math.random() * 140,
+        s: 0.25 + Math.random() * 0.7,
+        ph: Math.random() * 6.28,
+      });
+    }
+    G.add(rubble);
+    this.rubble = rubble;
+    this._m4 = new THREE.Matrix4();
+    this._q = new THREE.Quaternion();
+    this._e = new THREE.Euler();
+    this._V = V;
 
     // --- the rig: platform + legs + tower + radar + beacon + floodlight ---
     const rigMat = makePS1Material({ map: 'metal', uvScale: [2, 1] });
@@ -118,6 +145,107 @@ export default {
     beacon.position.set(4.5, 22.6, -2.5);
     rig.add(beacon);
     this.beacon = beacon;
+    // white comm strobe on the tower tip
+    this.commStrobe = makeSprite('glowWhite', { scale: 2.2 });
+    this.commStrobe.position.set(4.5, 24.6, -2.5);
+    rig.add(this.commStrobe);
+    // second floodlight on the deck edge, cooler tone
+    const flood2Pivot = new THREE.Group();
+    const flood2 = new THREE.Mesh(new THREE.ConeGeometry(2.6, 12, 8, 1, true),
+      makePS1Material({ map: 'glowWhite', unlit: true, additive: true, tint: [0.7, 0.85, 1], opacity: 0.4, depthWrite: false, side: THREE.DoubleSide }));
+    flood2.position.set(0, -6, 0);
+    flood2Pivot.add(flood2);
+    flood2Pivot.position.set(7.5, 14.6, 2.6);
+    flood2Pivot.rotation.set(0.7, 0, -0.3);
+    rig.add(flood2Pivot);
+    this.flood2 = flood2Pivot;
+
+    // cargo stack: 4 big containers on the side platform (scaled to READ at range)
+    const cargoA = makePS1Material({ map: 'cargo', uvScale: [1, 1] });
+    const cargoB = makePS1Material({ map: 'cargoBlue', uvScale: [1, 1] });
+    // each: x, y, z in rig-local space
+    const stackSpots = [
+      [8.6, 15.6, 2.0], [11.2, 15.6, 1.6], [9.8, 18.4, 1.8], [11.4, 18.4, 1.9],
+    ];
+    for (let i = 0; i < stackSpots.length; i++) {
+      const [x, y, z] = stackSpots[i];
+      const bx = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.6, 5.0), i % 2 ? cargoA : cargoB);
+      bx.position.set(x, y, z);
+      bx.rotation.y = (Math.random() - 0.5) * 0.3;
+      rig.add(bx);
+    }
+
+    // crane: tall mast + jib + cable + swinging hook (hero silhouette)
+    const crane = new THREE.Group();
+    const cMast = new THREE.Mesh(new THREE.BoxGeometry(1.2, 14, 1.2), rigMat2);
+    cMast.position.y = 7;
+    const cJib = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 15), rigMat2);
+    cJib.position.set(0, 13.4, 5.2);
+    cJib.rotation.x = 0.22;
+    const cCable = new THREE.Mesh(new THREE.BoxGeometry(0.14, 6.5, 0.14), rigMat2);
+    cCable.position.set(0, 9.8, 11.5);
+    const cHook = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.9), rigMat2);
+    cHook.position.set(0, 6.4, 11.5);
+    const cHookLight = makeSprite('glowRed', { scale: 1.4 });
+    cHookLight.position.set(0, 7.0, 11.5);
+    crane.add(cMast, cJib, cCable, cHook, cHookLight);
+    this.cHookLight = cHookLight;
+    crane.position.set(-8.5, 14.2, -2.8);
+    rig.add(crane);
+    this.crane = crane;
+    this.craneCable = cCable; this.craneHook = cHook;
+
+    // solar array cantilevered off the deck's left edge: big panels, one broken
+    const solarMat = makePS1Material({ map: 'solar', uvScale: [1, 1], side: THREE.DoubleSide });
+    this.solarPanels = [];
+    for (let i = 0; i < 4; i++) {
+      const p = new THREE.Mesh(new THREE.PlaneGeometry(5.0, 6.4), solarMat);
+      const broken = i === 2;
+      p.position.set(-9.5 - (i % 2) * 0.3, 16.5, -2.4 + i * 3.6);
+      p.rotation.x = -Math.PI / 2 + 0.5;
+      if (broken) { p.rotation.z = 0.7; p.rotation.x = -Math.PI / 2 + 0.9; }
+      rig.add(p);
+      this.solarPanels.push(p);
+    }
+    // support strut for the array
+    const strut = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3.2, 0.5), rigMat2);
+    strut.position.set(-9.2, 14.8, 2.0);
+    rig.add(strut);
+    // pipelines from the rock up to the deck (thick, readable)
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 7, 6), rigMat2);
+    pipe.position.set(2.0, 10.5, 2.6);
+    pipe.rotation.z = 0.35;
+    rig.add(pipe);
+    const pipe2 = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 5, 6), rigMat2);
+    pipe2.position.set(9.8, 11.4, 1.0);
+    pipe2.rotation.z = -0.6;
+    rig.add(pipe2);
+    // landing pad plate with baked marking
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.2, 0.35, 10),
+      makePS1Material({ map: 'metal', uvScale: [2, 2], tint: [0.9, 0.85, 0.7] }));
+    pad.position.set(-2.5, 14.4, 4.6);
+    rig.add(pad);
+
+    // half-buried wreck: a broken tug jammed into the big rock (big + readable)
+    const wreck2Mat = makePS1Material({ map: 'hull2', uvScale: [1, 1], tint: [0.62, 0.55, 0.48] });
+    const wreck2 = boxParts([
+      [7.4, 3.2, 4.2, 0, 0, 0],
+      [2.6, 2.2, 2.6, 4.4, 0.6, 0, 0, 0, 0.5],
+      [1.3, 4.2, 1.3, -3.0, 2.2, 0.8, 0, 0, -0.6],
+      [0.9, 0.9, 3.6, 0, 2.4, 0, 0, 0.9, 0],
+    ], wreck2Mat);
+    wreck2.position.set(-7.5, 10.0, 7.2);
+    wreck2.rotation.set(0.7, 0.5, -0.4);
+    rig.add(wreck2);
+
+    // drifting haze puffs near the rig (dark, normal blending)
+    this.hazePuffs = [];
+    for (let i = 0; i < 6; i++) {
+      const hp = makeSprite('smoke', { scale: 10 + Math.random() * 8, additive: false, unlit: true, opacity: 0.28, tint: [1.4, 0.9, 0.55] });
+      hp.position.set(big.position.x + (Math.random() - 0.5) * 40, big.position.y + 12 + Math.random() * 14, big.position.z + (Math.random() - 0.5) * 36);
+      hp.userData.ph = Math.random() * 6.28;
+      this.hazePuffs.push(hp); G.add(hp);
+    }
     // sweeping floodlight cone
     const coneTex = tex('glowWhite');
     const coneMat = makePS1Material({ map: 'glowWhite', unlit: true, additive: true, tint: [1, 0.85, 0.5], opacity: 0.5, depthWrite: false, side: THREE.DoubleSide });
@@ -201,10 +329,38 @@ export default {
 
     this.radar.rotation.y = t * 0.5;
     this.floodPivot.rotation.y = Math.sin(t * 0.22) * 1.1;
+    this.flood2.rotation.y = Math.sin(t * 0.17 + 1.5) * 0.9;
     this.beacon.visible = (t % 1.1) < 0.5;
+    this.commStrobe.visible = (t % 2.7) < 0.12;
+    this.cHookLight.visible = (t % 1.8) < 0.7;
+    // crane hook pendulum swing
+    const sw = Math.sin(t * 0.6) * 0.8;
+    this.craneCable.rotation.x = sw * 0.35;
+    this.craneCable.position.x = Math.sin(sw) * -1.6;
+    this.craneHook.position.x = this.craneCable.position.x * 2;
+    this.craneHook.position.y = this.craneCable.position.y - Math.cos(sw) * 2.3 + 2.3;
+    this.craneHook.rotation.z = sw * 0.4;
     for (let i = 0; i < this.habWins.length; i++) {
       const flick = 0.4 + 0.6 * (Math.sin(t * 7 + i * 2.4) > -0.6 ? 1 : 0.25);
       this.habWins[i].material.uniforms.uOpacity.value = 1.0 * flick;
+    }
+    // rubble field tumbling drift
+    for (let i = 0; i < this.rubbleData.length; i++) {
+      const c = this.rubbleData[i];
+      this._e.set(c.ph + t * 0.3, c.ph * 2 + t * 0.2, 0);
+      this._q.setFromEuler(this._e);
+      this._m4.compose(
+        V(c.x + Math.sin(t * 0.05 + c.ph) * 3, c.y + Math.sin(t * 0.08 + c.ph) * 2, c.z),
+        this._q, V(c.s, c.s * 0.85, c.s)
+      );
+      this.rubble.setMatrixAt(i, this._m4);
+    }
+    this.rubble.instanceMatrix.needsUpdate = true;
+    // haze puffs slowly swirl
+    for (const hp of this.hazePuffs) {
+      hp.position.x += Math.sin(t * 0.05 + hp.userData.ph) * 0.012;
+      hp.position.y += 0.006;
+      hp.material.uniforms.uOpacity.value = 0.2 + 0.12 * Math.sin(t * 0.2 + hp.userData.ph);
     }
 
     // wreck slow tumble + drift
